@@ -104,6 +104,8 @@ async def lifespan(app: FastAPI):
         api_key=Config.LLM_API_KEY,
         temperature=Config.LLM_TEMPERATURE,
         max_tokens=Config.LLM_MAX_TOKENS,
+        timeout=60,
+        max_retries=3,
     )
 
     _retriever = Retriever(

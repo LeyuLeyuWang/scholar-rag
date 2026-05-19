@@ -1,5 +1,6 @@
 """PDF parsing and integration with RAG system."""
 
+import logging
 from pathlib import Path
 import uuid
 import re
@@ -8,11 +9,12 @@ from docling.document_converter import DocumentConverter
 from langchain_core.documents import Document
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_milvus import Milvus, BM25BuiltInFunction
 from pydantic import BaseModel, Field
 from .models import PaperNode, NodeType
 from .node_generator import NodeContentGeneratorFactory, TableGenerator
-from .factory import EmbeddingService
+from .factory import EmbeddingService, MilvusStoreFactory
+
+logger = logging.getLogger(__name__)
 
 FIGURE_SAVE_DIR = Path("./data/figures")
 
@@ -648,25 +650,15 @@ class RAGIntegration:
         """Store documents in Milvus with hybrid index (dense + BM25)."""
         if not parents or not children:
             return False
-        
-        bm25 = BM25BuiltInFunction(input_field_names="text", output_field_names="sparse")
-        
+
         try:
-            child_store = Milvus(
-                embedding_function=self.embeddings,
-                builtin_function=bm25,
-                vector_field=["dense", "sparse"],
-                collection_name=f"{self.collection_name}_children",
-                connection_args={"uri": self.milvus_uri},
+            child_store = MilvusStoreFactory.create_store(
+                self.embeddings, self.milvus_uri, self.collection_name, is_child=True
             )
             child_store.add_documents(children)
 
-            parent_store = Milvus(
-                embedding_function=self.embeddings,
-                builtin_function=bm25,
-                vector_field=["dense", "sparse"],
-                collection_name=f"{self.collection_name}_parents",
-                connection_args={"uri": self.milvus_uri},
+            parent_store = MilvusStoreFactory.create_store(
+                self.embeddings, self.milvus_uri, self.collection_name, is_child=False
             )
             parent_store.add_documents(parents)
             return True
